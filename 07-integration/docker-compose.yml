@@ -1,0 +1,13 @@
+# Standalone integration demo (no Agent Debugger).
+services:
+  integration-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      SKIP_MODEL: "1"
+      PYTHONPATH: /workspace:/workspace/07-integration:/workspace/05-plugins:/workspace/06-skills:/workspace/04-mcp
+    command: >
+      bash -lc "pip install -q -r 07-integration/requirements.txt
+      && python 07-integration/integration/pipeline.py --no-email"

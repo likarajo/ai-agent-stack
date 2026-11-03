@@ -1,0 +1,82 @@
+[
+  {
+    "id": 101,
+    "title": "Login page hangs after SSO redirect",
+    "state": "open",
+    "labels": ["auth", "bug", "p1"],
+    "body": "Users report the login spinner never stops when SSO redirects back. Started after the session cookie change in #89.",
+    "assignee": "alex",
+    "created_at": "2026-10-12T09:15:00Z",
+    "updated_at": "2026-10-28T14:02:00Z"
+  },
+  {
+    "id": 102,
+    "title": "Login timeout after 30s on slow networks",
+    "state": "open",
+    "labels": ["auth", "bug", "p2"],
+    "body": "Mobile users on 3G hit a hard 30s timeout before the auth token refresh completes. Need to align with the runbook guidance.",
+    "assignee": "blair",
+    "created_at": "2026-10-15T11:00:00Z",
+    "updated_at": "2026-10-27T08:41:00Z"
+  },
+  {
+    "id": 103,
+    "title": "Add dark mode to settings",
+    "state": "open",
+    "labels": ["ui", "enhancement"],
+    "body": "Request from design: respect prefers-color-scheme in the settings panel.",
+    "assignee": null,
+    "created_at": "2026-10-18T16:20:00Z",
+    "updated_at": "2026-10-18T16:20:00Z"
+  },
+  {
+    "id": 104,
+    "title": "Password reset email missing login link",
+    "state": "closed",
+    "labels": ["auth", "bug"],
+    "body": "Reset emails pointed to an old domain. Fixed by updating the mail template.",
+    "assignee": "casey",
+    "created_at": "2026-09-02T10:00:00Z",
+    "updated_at": "2026-09-10T12:00:00Z"
+  },
+  {
+    "id": 105,
+    "title": "Document login timeout troubleshooting",
+    "state": "open",
+    "labels": ["docs", "auth"],
+    "body": "Ops wants the runbook linked from the issue tracker FAQ so agents and humans use the same steps.",
+    "assignee": "devon",
+    "created_at": "2026-10-20T13:45:00Z",
+    "updated_at": "2026-10-25T09:10:00Z"
+  },
+  {
+    "id": 106,
+    "title": "Export CSV for billing reports",
+    "state": "open",
+    "labels": ["billing", "enhancement"],
+    "body": "Finance needs a CSV export of monthly invoices.",
+    "assignee": null,
+    "created_at": "2026-10-22T08:00:00Z",
+    "updated_at": "2026-10-22T08:00:00Z"
+  },
+  {
+    "id": 107,
+    "title": "Login rate limit too aggressive for QA",
+    "state": "open",
+    "labels": ["auth", "infra", "p3"],
+    "body": "Shared QA accounts get locked after 5 attempts. Consider a bypass for the staging IP range.",
+    "assignee": "alex",
+    "created_at": "2026-10-24T17:30:00Z",
+    "updated_at": "2026-10-26T11:05:00Z"
+  },
+  {
+    "id": 108,
+    "title": "Flaky e2e test: login form submit",
+    "state": "closed",
+    "labels": ["test", "auth"],
+    "body": "Race on hydration. Stabilized with waitForSelector.",
+    "assignee": "blair",
+    "created_at": "2026-08-14T09:00:00Z",
+    "updated_at": "2026-08-20T15:00:00Z"
+  }
+]

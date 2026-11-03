@@ -1,0 +1,12 @@
+services:
+  tools-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      SKIP_MODEL: "1"
+      PYTHONPATH: /workspace:/workspace/02-tools
+    command: >
+      bash -lc "pip install -q -r 02-tools/requirements.txt
+      && python 02-tools/tools_demo/agent.py"

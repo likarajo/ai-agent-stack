@@ -1,0 +1,12 @@
+services:
+  rag-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      SKIP_MODEL: "1"
+      PYTHONPATH: /workspace:/workspace/03-rag
+    command: >
+      bash -lc "pip install -q -r 03-rag/requirements.txt
+      && python 03-rag/rag_demo/ask.py"

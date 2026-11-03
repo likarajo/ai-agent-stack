@@ -53,3 +53,9 @@ temp/
 
 # Docker
 docker-data/
+
+# Plugin install output
+05-plugins/.installed/
+
+# Local clone of Agent Debugger (optional)
+third_party/agent-debugger/
