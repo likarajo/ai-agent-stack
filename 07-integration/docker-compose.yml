@@ -1,0 +1,17 @@
+# Standalone observability chat (no Agent Debugger).
+services:
+  chat:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    ports:
+      - "8080:8080"
+    environment:
+      SKIP_MODEL: "1"
+      CHAT_HOST: "0.0.0.0"
+      CHAT_PORT: "8080"
+      PYTHONPATH: /workspace:/workspace/07-integration:/workspace/05-plugins:/workspace/06-skills:/workspace/04-mcp:/workspace/03-rag:/workspace/02-tools
+    command: >
+      bash -lc "pip install -q -r 07-integration/requirements.txt
+      && python 07-integration/integration/chat_app.py"

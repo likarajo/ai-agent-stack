@@ -1,0 +1,11 @@
+services:
+  plugin-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PYTHONPATH: /workspace
+    command: >
+      bash -lc "pip install -q -r 05-plugins/requirements.txt
+      && python 05-plugins/loader/install.py"

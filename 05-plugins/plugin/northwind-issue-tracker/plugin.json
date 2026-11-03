@@ -1,0 +1,36 @@
+{
+  "name": "northwind-issue-tracker",
+  "version": "1.0.0",
+  "display_name": "Northwind Issue Tracker",
+  "description": "Packaged capability: MCP server, triage skill, and slash commands for the Northwind portal issue tracker.",
+  "mcp_servers": [
+    {
+      "name": "northwind-issue-tracker",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["04-mcp/server/issue_tracker.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  ],
+  "skills": [
+    "06-skills/skills/issue-triage"
+  ],
+  "commands": [
+    {
+      "name": "issues-login",
+      "description": "Search open issues mentioning login",
+      "prompt": "Which open issues mention login?"
+    },
+    {
+      "name": "triage-login",
+      "description": "Run the issue-triage skill on open login issues",
+      "prompt": "Triage the open login issues."
+    }
+  ],
+  "settings": {
+    "default_issue_state": "open",
+    "require_human_for": ["email.send"]
+  }
+}

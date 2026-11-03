@@ -1,0 +1,11 @@
+services:
+  mcp-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PYTHONPATH: /workspace
+    command: >
+      bash -lc "pip install -q -r 04-mcp/requirements.txt
+      && python 04-mcp/client/demo.py"

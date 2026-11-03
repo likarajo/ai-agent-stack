@@ -1,0 +1,11 @@
+services:
+  skills-demo:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      PYTHONPATH: /workspace/06-skills:/workspace
+    command: >
+      bash -lc "pip install -q -r 06-skills/requirements.txt
+      && python 06-skills/agent/run.py"

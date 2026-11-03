@@ -1,0 +1,91 @@
+# Default: local free stack pieces. Use profile "debugger" for Agent Debugger UI.
+#
+#   docker compose up issue-api
+#   docker compose --profile debugger up
+#
+# Agent Debugger sources are expected at:
+#   ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}
+
+services:
+  issue-api:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PYTHONPATH: /workspace:/workspace/01-apis
+    command: >
+      bash -lc "pip install -q -r 01-apis/requirements.txt
+      && python -m uvicorn issue_api.server:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  chat:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    ports:
+      - "8080:8080"
+    environment:
+      SKIP_MODEL: "1"
+      CHAT_HOST: "0.0.0.0"
+      CHAT_PORT: "8080"
+      PYTHONPATH: /workspace:/workspace/07-integration:/workspace/05-plugins:/workspace/06-skills:/workspace/04-mcp:/workspace/03-rag:/workspace/02-tools
+    command: >
+      bash -lc "pip install -q -r 07-integration/requirements.txt
+      && python 07-integration/integration/chat_app.py"
+    profiles: ["chat"]
+
+  # --- Agent Debugger (optional profile) ---
+  debugger-redis:
+    profiles: ["debugger"]
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  debugger-api:
+    profiles: ["debugger"]
+    build: ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}/api
+    ports:
+      - "18000:8000"
+    environment:
+      REDIS_URL: redis://debugger-redis:6379/0
+    depends_on:
+      debugger-redis:
+        condition: service_healthy
+
+  # Intentionally omit agent-debugger's scripted worker so our pipeline drives events.
+  debugger-ui:
+    profiles: ["debugger"]
+    build: ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}/ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - debugger-api
+
+  chat-debugger:
+    profiles: ["debugger"]
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    ports:
+      - "8080:8080"
+    environment:
+      SKIP_MODEL: "1"
+      CHAT_HOST: "0.0.0.0"
+      CHAT_PORT: "8080"
+      AGENT_DEBUGGER_URL: http://debugger-api:8000
+      PYTHONPATH: /workspace:/workspace/07-integration:/workspace/05-plugins:/workspace/06-skills:/workspace/04-mcp:/workspace/03-rag:/workspace/02-tools
+    command: >
+      bash -lc "pip install -q -r 07-integration/requirements.txt
+      && python 07-integration/integration/chat_app.py"
+    depends_on:
+      - debugger-api
+      - issue-api
