@@ -84,4 +84,4 @@ debugger-down:
 	docker compose --profile debugger down
 
 integration-debugger:
-	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) $(PYTHON) 07-integration/integration/pipeline.py
+	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) PYTHONPATH=$(PYTHONPATH):03-rag $(PYTHON) 07-integration/integration/pipeline.py
