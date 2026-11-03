@@ -1,33 +1,38 @@
-# 07 — Integration (full agentic stack)
+# 07 — Integration (observability chat)
 
 ## What it is (plain English)
 
-This module **stacks** every concept from the article into one runnable agent:
+This module **stacks** every concept from the article into one agentic answer
+loop and makes the whole path **observable**:
 
 1. **Plugin** load (packaging)
 2. **Skill** selection with progressive loading (playbook)
-3. **RAG** retrieval (runbook context)
+3. **RAG** retrieval (runbook chunks + scores)
 4. **MCP** tool call (standardized tools)
-5. Plain **tool / API**-shaped call (deterministic detail fetch)
-6. Optional gated **`email.send`** (human-in-the-loop via Agent Debugger)
+5. Plain **tools** / function calling
+6. **API** detail fetch
+7. **LLM** compose (Ollama or scripted fallback)
+8. Final answer
 
-They stack; they don’t compete.
+They stack; they don’t compete. The demo is a **small web chat** (films well)
+plus an optional Agent Debugger timeline — not an email-gate showcase.
 
 ## When to use this module
 
-Use it after you’ve walked the individual modules — as the end-to-end demo and as a template for wiring your own stack.
+After the individual modules — as the end-to-end / YouTube finale for
+observability across the stack.
 
 ## Running example
 
-Task: **“Triage the open login issues.”**  
-Same Northwind portal issue-tracker domain used everywhere in this repo.
+Ask in chat: **“Which open issues mention login?”**, **“How do we usually fix
+login timeouts?”**, or **“Triage the open login issues.”**  
+Same Northwind issue-tracker domain as every other module.
 
 ## Prerequisites
 
-- Python 3.11+
-- Dependencies from `requirements.txt` (includes `mcp`, `numpy`, `httpx`, …)
-- Optional: [Agent Debugger](https://github.com/likarajo/agent-debugger) for the live timeline UI
-- Optional: Ollama (not required for the default scripted path)
+- Python 3.11+ and `requirements.txt`
+- Optional: [Agent Debugger](https://github.com/likarajo/agent-debugger)
+- Optional: Ollama (default path is scripted / free)
 
 ## Setup
 
@@ -36,65 +41,68 @@ cd 07-integration
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 # from repo root:
-export PYTHONPATH=.:05-plugins:06-skills:04-mcp
+export PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools
 ```
 
-## Run (standalone — default)
+## Run — web chat (preferred for filming)
 
 ```bash
-# No debugger, no model keys required
-SKIP_MODEL=1 PYTHONPATH=.:05-plugins:06-skills:04-mcp \
-  python 07-integration/integration/pipeline.py
-
-# Skip the gated email step entirely
-SKIP_MODEL=1 PYTHONPATH=.:05-plugins:06-skills:04-mcp \
-  python 07-integration/integration/pipeline.py --no-email
+# Standalone (local trace pane in the UI)
+SKIP_MODEL=1 make chat
+# open http://127.0.0.1:8080
 ```
 
-Docker (standalone):
+With Agent Debugger:
+
+```bash
+make debugger-up
+AGENT_DEBUGGER_URL=http://127.0.0.1:18000 SKIP_MODEL=1 make chat
+```
+
+One-shot CLI (same pipeline):
+
+```bash
+SKIP_MODEL=1 make integration
+# or:
+SKIP_MODEL=1 PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools \
+  python 07-integration/integration/pipeline.py --question "Which open issues mention login?"
+```
+
+Docker (standalone chat):
 
 ```bash
 cd 07-integration && docker compose up
 ```
 
-## Run with Agent Debugger (optional)
-
-See [`../docs/AGENT_DEBUGGER.md`](../docs/AGENT_DEBUGGER.md) and the top-level compose profile:
-
-```bash
-# from repo root — starts issue-stack + debugger (ui :3000, debugger api :18000)
-make debugger-up
-# in another shell:
-make integration-debugger
-```
-
-Set:
-
-| Env var | Meaning |
-| --- | --- |
-| `AGENT_DEBUGGER_URL` | Base URL of debugger API (e.g. `http://127.0.0.1:18000`). **Unset = standalone.** |
-| `AGENT_DEBUGGER_AUTO_APPROVE` | `1` to auto-approve gated tools (tests only) |
-
 ## Expected output
 
-A triage report listing open login issues, skill/plugin provenance, RAG excerpt, and (if enabled) a debugger note. With the debugger UI open you should see timeline events for plugin load, skill load, RAG, MCP, API, and a **paused** `email.send` until Approve/Deny.
+- Chat returns an answer citing issues and/or runbook sources.
+- Local trace sidebar lists ordered steps with JSON payloads (`duration_ms`,
+  RAG chunks, MCP request/response, LLM prompt summary, …).
+- With Debugger: the same events are POSTed to `/runs/{id}/events` (copy
+  `run_id` into the Debugger UI after the upstream Watch-run patch).
 
 ## Smoke test
 
 ```bash
-PYTHONPATH=.:05-plugins:06-skills:04-mcp pytest 07-integration/tests -q
+PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools \
+  pytest 07-integration/tests -q
 ```
-
-Model-dependent and live-debugger tests are not required for CI.
 
 ## Code walkthrough
 
-1. `integration/pipeline.py` — orchestrates the stack; emits debugger events when configured.
-2. `integration/gated_actions.py` — simulated `email.send` (never sends real mail).
-3. `../shared/debugger.py` — optional adapter to Agent Debugger’s runs/events/decision protocol.
+1. `integration/chat_app.py` — FastAPI web chat + suggested question chips.
+2. `integration/pipeline.py` — `answer_question()` runs all six concepts and
+   records timed steps.
+3. `../shared/debugger.py` — optional Debugger adapter (`step()`,
+   `user.message`, `agent.answer`).
+4. Docs: [`../docs/AGENT_DEBUGGER.md`](../docs/AGENT_DEBUGGER.md),
+   [`../docs/AGENT_DEBUGGER_UPSTREAM.md`](../docs/AGENT_DEBUGGER_UPSTREAM.md).
 
 ## Known limitations
 
-- Default path is deterministic/scripted so it runs free without Ollama.
-- Combined Docker profile expects a local clone of `agent-debugger` as a sibling or via `AGENT_DEBUGGER_PATH` (see docs).
-- Creating a run in Agent Debugger also enqueues its Redis worker; the compose profile **does not start** that worker so our pipeline can drive events. See PR notes for a suggested upstream tweak.
+- Default LLM path is scripted when `SKIP_MODEL=1` / Ollama is down.
+- Debugger UI needs a small upstream patch to “Watch run” by id (documented;
+  not applied from this repo).
+- Gated `email.send` is available when the user asks to notify/email; it is a
+  side path for the separate Debugger breakpoint video.

@@ -6,7 +6,7 @@ PIP ?= $(PYTHON) -m pip
 AGENT_DEBUGGER_URL ?= http://127.0.0.1:18000
 
 .PHONY: help install smoke \
-	apis tools rag mcp plugins skills integration \
+	apis tools rag mcp plugins skills integration chat chat-debugger \
 	test-apis test-tools test-rag test-mcp test-plugins test-skills test-integration \
 	test-all debugger-up debugger-down integration-debugger clone-debugger
 
@@ -15,11 +15,13 @@ help:
 	@echo "  install               pip install root requirements"
 	@echo "  smoke / test-all      run all model-free smoke tests"
 	@echo "  apis|tools|rag|mcp|plugins|skills|integration  run module demos"
+	@echo "  chat                  observability web chat on :8080"
+	@echo "  chat-debugger         chat with AGENT_DEBUGGER_URL set"
 	@echo "  test-<module>         smoke test one module"
 	@echo "  clone-debugger        clone Agent Debugger into third_party/"
 	@echo "  debugger-up           compose profile debugger (ui :3000, api :18000)"
 	@echo "  debugger-down         stop debugger profile"
-	@echo "  integration-debugger  run pipeline with AGENT_DEBUGGER_URL"
+	@echo "  integration-debugger  one-shot pipeline with AGENT_DEBUGGER_URL"
 
 install:
 	$(PIP) install -r requirements.txt
@@ -43,7 +45,13 @@ skills:
 	PYTHONPATH=06-skills:$(PYTHONPATH) $(PYTHON) 06-skills/agent/run.py
 
 integration:
-	SKIP_MODEL=1 $(PYTHON) 07-integration/integration/pipeline.py --no-email
+	SKIP_MODEL=1 $(PYTHON) 07-integration/integration/pipeline.py --question "Which open issues mention login?"
+
+chat:
+	SKIP_MODEL=1 $(PYTHON) 07-integration/integration/chat_app.py
+
+chat-debugger:
+	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) $(PYTHON) 07-integration/integration/chat_app.py
 
 test-apis:
 	$(PYTEST) 01-apis/tests -q
@@ -84,4 +92,4 @@ debugger-down:
 	docker compose --profile debugger down
 
 integration-debugger:
-	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) PYTHONPATH=$(PYTHONPATH):03-rag $(PYTHON) 07-integration/integration/pipeline.py
+	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) $(PYTHON) 07-integration/integration/pipeline.py --question "Triage the open login issues."

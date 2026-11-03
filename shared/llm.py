@@ -64,10 +64,19 @@ def _chat_ollama(
     except (httpx.HTTPError, OSError) as exc:
         raise ModelUnavailable(f"Ollama chat failed: {exc}") from exc
     message = data.get("message") or {}
+    usage = None
+    if any(k in data for k in ("prompt_eval_count", "eval_count")):
+        usage = {
+            "prompt_tokens": data.get("prompt_eval_count"),
+            "completion_tokens": data.get("eval_count"),
+            "total_tokens": (data.get("prompt_eval_count") or 0)
+            + (data.get("eval_count") or 0),
+        }
     return {
         "role": message.get("role", "assistant"),
         "content": message.get("content") or "",
         "tool_calls": message.get("tool_calls") or [],
+        "usage": usage,
     }
 
 
@@ -118,4 +127,5 @@ def _chat_openai_compatible(
         "role": message.get("role", "assistant"),
         "content": message.get("content") or "",
         "tool_calls": tool_calls,
+        "usage": data.get("usage"),
     }

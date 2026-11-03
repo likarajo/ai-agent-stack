@@ -58,7 +58,7 @@ cd ai-agent-stack
 python3 -m venv .venv && source .venv/bin/activate
 make install
 make smoke          # model-free CI-equivalent tests
-make integration    # end-to-end standalone demo
+make chat           # observability web chat → http://127.0.0.1:8080
 ```
 
 Per-module one-liners:
@@ -69,6 +69,7 @@ make rag        # extractive RAG over shared docs
 make mcp        # official MCP Python SDK stdio round-trip
 make plugins    # install plugin manifest
 make skills     # progressive skill load + triage report
+make integration  # one-shot full-stack answer (CLI)
 ```
 
 Optional live LLM (free, local):
@@ -80,14 +81,14 @@ unset SKIP_MODEL
 python 02-tools/tools_demo/agent.py
 ```
 
-Optional Agent Debugger timeline (final video):
+Optional Agent Debugger timeline (final observability video):
 
 ```bash
-make debugger-up            # needs Docker; clones debugger into third_party/
-make integration-debugger   # pauses on email.send until Approve/Deny in UI :3000
+make debugger-up      # needs Docker; clones debugger into third_party/
+make chat-debugger    # chat on :8080 streaming every step to Debugger :18000 / UI :3000
 ```
 
-Details: [`docs/AGENT_DEBUGGER.md`](docs/AGENT_DEBUGGER.md).
+Details: [`docs/AGENT_DEBUGGER.md`](docs/AGENT_DEBUGGER.md) · upstream patches: [`docs/AGENT_DEBUGGER_UPSTREAM.md`](docs/AGENT_DEBUGGER_UPSTREAM.md).
 
 ## Makefile
 
