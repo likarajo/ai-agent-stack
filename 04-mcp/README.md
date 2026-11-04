@@ -31,24 +31,27 @@ An MCP server exposes `search_issues_tool` / `get_issue_tool`. A stdio client li
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 04-mcp
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export PYTHONPATH=.   # from repo root
+pip install -r 04-mcp/requirements.txt
+export PYTHONPATH=.
 ```
 
 ## Run
+
+From the repo root:
 
 ```bash
 # Client spawns the server over stdio and calls a tool
 PYTHONPATH=. python 04-mcp/client/demo.py
 ```
 
-Docker:
+Docker, from the repo root:
 
 ```bash
-cd 04-mcp && docker compose up
+docker compose -f 04-mcp/docker-compose.yml up
 ```
 
 ## Expected output
@@ -57,8 +60,24 @@ JSON with discovered tool names and a tool result containing open login-related 
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-PYTHONPATH=. pytest 04-mcp/tests -q
+PYTHONPATH=. pytest 04-mcp/tests -q -rA
+```
+
+Expected summary:
+
+```text
+...                                                                      [100%]
+==================================== PASSES ====================================
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_tools_registered
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_search_tool_direct
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_stdio_client_roundtrip
+=========================== short test summary info ============================
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_tools_registered
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_search_tool_direct
+PASSED 04-mcp/tests/test_mcp_smoke.py::test_stdio_client_roundtrip
 ```
 
 ## Code walkthrough

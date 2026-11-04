@@ -18,7 +18,8 @@ services:
       bash -lc "pip install -q -r 01-apis/requirements.txt
       && python -m uvicorn issue_api.server:app --host 0.0.0.0 --port 8000"
     ports:
-      - "8000:8000"
+      # Host 8001 so Agent Debugger can own :8000 (matches agent-debugger compose).
+      - "8001:8000"
 
   chat:
     image: python:3.12-slim
@@ -53,7 +54,8 @@ services:
     profiles: ["debugger"]
     build: ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}/api
     ports:
-      - "18000:8000"
+      # Same host mapping as agent-debugger's own compose (UI expects :8000).
+      - "8000:8000"
     environment:
       REDIS_URL: redis://debugger-redis:6379/0
     depends_on:
@@ -63,7 +65,10 @@ services:
   # Intentionally omit agent-debugger's scripted worker so our pipeline drives events.
   debugger-ui:
     profiles: ["debugger"]
-    build: ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}/ui
+    build:
+      context: ${AGENT_DEBUGGER_PATH:-./third_party/agent-debugger}/ui
+      args:
+        VITE_API_URL: http://localhost:8000
     ports:
       - "3000:80"
     depends_on:
@@ -82,6 +87,7 @@ services:
       CHAT_HOST: "0.0.0.0"
       CHAT_PORT: "8080"
       AGENT_DEBUGGER_URL: http://debugger-api:8000
+      ISSUE_API_BASE_URL: http://issue-api:8000
       PYTHONPATH: /workspace:/workspace/07-integration:/workspace/05-plugins:/workspace/06-skills:/workspace/04-mcp:/workspace/03-rag:/workspace/02-tools
     command: >
       bash -lc "pip install -q -r 07-integration/requirements.txt

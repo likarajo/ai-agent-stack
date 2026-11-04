@@ -27,7 +27,12 @@ def test_install_writes_config(tmp_path: Path) -> None:
     target = install_plugin(MANIFEST, install_dir=tmp_path)
     assert target.exists()
     data = json.loads(target.read_text(encoding="utf-8"))
-    assert data["mcp_servers"][0]["args"]
+    server = data["mcp_servers"][0]
+    assert server["args"]
+    # Interpreter resolved via sys.executable — no PATH dependency on "python".
+    assert server["command"] == sys.executable
+    assert Path(server["args"][0]).is_absolute()
+    assert Path(server["args"][0]).exists()
     text = describe_install(target)
     assert "Northwind Issue Tracker" in text
     assert "packaging only" in text.lower() or "Packaging" in text or "packaging" in text

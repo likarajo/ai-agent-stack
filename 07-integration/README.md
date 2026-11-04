@@ -36,15 +36,17 @@ Same Northwind issue-tracker domain as every other module.
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 07-integration
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# from repo root:
+pip install -r 07-integration/requirements.txt
 export PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools
 ```
 
 ## Run — web chat (preferred for filming)
+
+From the repo root:
 
 ```bash
 # Standalone (local trace pane in the UI)
@@ -52,11 +54,13 @@ SKIP_MODEL=1 make chat
 # open http://127.0.0.1:8080
 ```
 
-With Agent Debugger:
+With Agent Debugger (API on host **:8000**, UI on **:3000** — same ports as
+agent-debugger’s own compose; Docker `issue-api` is remapped to host **:8001**
+so it does not collide):
 
 ```bash
 make debugger-up
-AGENT_DEBUGGER_URL=http://127.0.0.1:18000 SKIP_MODEL=1 make chat
+AGENT_DEBUGGER_URL=http://127.0.0.1:8000 SKIP_MODEL=1 make chat
 ```
 
 One-shot CLI (same pipeline):
@@ -68,10 +72,10 @@ SKIP_MODEL=1 PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-t
   python 07-integration/integration/pipeline.py --question "Which open issues mention login?"
 ```
 
-Docker (standalone chat):
+Docker (standalone chat), from the repo root:
 
 ```bash
-cd 07-integration && docker compose up
+docker compose -f 07-integration/docker-compose.yml up
 ```
 
 ## Expected output
@@ -79,14 +83,25 @@ cd 07-integration && docker compose up
 - Chat returns an answer citing issues and/or runbook sources.
 - Local trace sidebar lists ordered steps with JSON payloads (`duration_ms`,
   RAG chunks, MCP request/response, LLM prompt summary, …).
-- With Debugger: the same events are POSTed to `/runs/{id}/events` (copy
-  `run_id` into the Debugger UI after the upstream Watch-run patch).
+- With Debugger: the same events are POSTed to `/runs/{id}/events`. Paste
+  `run_id` into the Debugger **Watch run** UI (or open `/?run_id=<uuid>`).
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
 PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools \
-  pytest 07-integration/tests -q
+  pytest 07-integration/tests -q -rA
+```
+
+Expected summary includes the Deny-path test:
+
+```text
+...                                                                      [100%]
+==================================== PASSES ====================================
+PASSED 07-integration/tests/test_debugger_adapter.py::test_deny_path_ends_cleanly_without_posting_after_abort
+...
 ```
 
 ## Code walkthrough
@@ -95,14 +110,15 @@ PYTHONPATH=.:07-integration:05-plugins:06-skills:04-mcp:03-rag:02-tools \
 2. `integration/pipeline.py` — `answer_question()` runs all six concepts and
    records timed steps.
 3. `../shared/debugger.py` — optional Debugger adapter (`step()`,
-   `user.message`, `agent.answer`).
+   `user.message`, `agent.answer`). After a **Deny**, the remote run is already
+   aborted by agent-debugger — we record the denied tool call locally and do
+   not POST another `run.aborted` (that would be HTTP 400).
 4. Docs: [`../docs/AGENT_DEBUGGER.md`](../docs/AGENT_DEBUGGER.md),
    [`../docs/AGENT_DEBUGGER_UPSTREAM.md`](../docs/AGENT_DEBUGGER_UPSTREAM.md).
 
 ## Known limitations
 
 - Default LLM path is scripted when `SKIP_MODEL=1` / Ollama is down.
-- Debugger UI needs a small upstream patch to “Watch run” by id (documented;
-  not applied from this repo).
 - Gated `email.send` is available when the user asks to notify/email; it is a
-  side path for the separate Debugger breakpoint video.
+  side path for the separate Debugger breakpoint video. Deny ends cleanly
+  (answer kept; email not sent; audit trail records the denial).

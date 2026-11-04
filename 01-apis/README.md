@@ -31,38 +31,33 @@ This module answers it with `GET /issues?state=open&q=login` against a local Nor
 
 ## Setup
 
+All commands below are run **from the repository root** (so `shared/` imports resolve).
+
 ```bash
-cd 01-apis
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-From the repo root (so `shared/` imports resolve):
-
-```bash
-export PYTHONPATH=.
+pip install -r 01-apis/requirements.txt
+export PYTHONPATH=.:01-apis
 ```
 
 ## Run
 
-Start the API:
+Start the API (from the repo root):
 
 ```bash
-# from repo root
 PYTHONPATH=.:01-apis python -m uvicorn issue_api.server:app --host 127.0.0.1 --port 8000
 ```
 
-In another terminal, call the client:
+In another terminal (also from the repo root), call the client:
 
 ```bash
 PYTHONPATH=.:01-apis python 01-apis/issue_api/client.py
 ```
 
-One-command Docker bring-up:
+One-command Docker bring-up (from the repo root):
 
 ```bash
-cd 01-apis && docker compose up --build
+docker compose -f 01-apis/docker-compose.yml up --build
 ```
 
 ## Expected output
@@ -75,9 +70,26 @@ Found 4 open issue(s) mentioning login.
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-# from repo root
-PYTHONPATH=. pytest 01-apis/tests -q
+PYTHONPATH=. pytest 01-apis/tests -q -rA
+```
+
+Expected summary (pass lines may vary slightly by pytest version):
+
+```text
+....                                                                     [100%]
+==================================== PASSES ====================================
+PASSED 01-apis/tests/test_apis_smoke.py::test_health
+PASSED 01-apis/tests/test_apis_smoke.py::test_search_open_login_issues
+PASSED 01-apis/tests/test_apis_smoke.py::test_get_issue
+PASSED 01-apis/tests/test_apis_smoke.py::test_missing_issue
+=========================== short test summary info ============================
+PASSED 01-apis/tests/test_apis_smoke.py::test_health
+PASSED 01-apis/tests/test_apis_smoke.py::test_search_open_login_issues
+PASSED 01-apis/tests/test_apis_smoke.py::test_get_issue
+PASSED 01-apis/tests/test_apis_smoke.py::test_missing_issue
 ```
 
 No model or network keys required.

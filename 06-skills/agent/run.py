@@ -32,11 +32,45 @@ def run(task: str) -> str:
     skill = load_full(chosen)
     lines.append(f"\n# Selected skill: {skill.meta.name}")
     lines.append("(Full SKILL.md loaded on demand)\n")
-    lines.append(skill.body.split("## Report template")[0].strip())
+    preview = skill.body
+    if "## Report template" in preview:
+        preview = preview.split("## Report template")[0].strip()
+    elif "## Rules" in preview:
+        preview = preview.split("## Rules")[0].strip()
+    lines.append(preview)
 
-    # Follow the skill steps against live issue data (tools/API layer).
-    needle = "login" if "login" in task.lower() else task
+    task_l = task.lower()
+    if "billing" in task_l:
+        needle = "billing"
+    elif "login" in task_l or "auth" in task_l or "triage" in task_l:
+        needle = "login"
+    else:
+        needle = task
     issues = search_issues(state="open", text=needle)
+
+    if skill.meta.name == "billing-refunds":
+        lines.append("\n# Billing summary")
+        lines.append(f"- Scope: open issues matching '{needle}'")
+        lines.append("- Matches:")
+        for issue in issues:
+            labels = issue.get("labels") or []
+            lines.append(f"  - #{issue['id']} {issue['title']} [{', '.join(labels)}]")
+        lines.append("- Next step: Draft refund request fields; do not silently issue credits.")
+        return "\n".join(lines)
+
+    if skill.meta.name == "login-reset":
+        lines.append("\n# Login access summary")
+        lines.append(f"- Scope: open issues matching '{needle}'")
+        lines.append("- Matches:")
+        for issue in issues:
+            labels = issue.get("labels") or []
+            lines.append(f"  - #{issue['id']} {issue['title']} [{', '.join(labels)}]")
+        lines.append(
+            "- Next step: Confirm lockout vs timeout; follow login-timeout runbook if spinner hangs."
+        )
+        return "\n".join(lines)
+
+    # Default: issue-triage playbook
     lines.append("\n# Triage report")
     lines.append(f"- Scope: open issues matching '{needle}'")
     lines.append("- Matches:")
