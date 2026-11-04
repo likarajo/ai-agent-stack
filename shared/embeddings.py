@@ -4,6 +4,7 @@ optional Ollama embeddings when a model is available.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from typing import Iterable
@@ -21,12 +22,17 @@ def tokenize(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
 
 
+def _stable_token_index(token: str, dim: int) -> int:
+    """Process-stable bucket index (avoids PYTHONHASHSEED-randomized hash())."""
+    digest = hashlib.sha256(token.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "little") % dim
+
+
 def hash_embed(text: str, dim: int = 256) -> np.ndarray:
     """Deterministic local embedding that needs no model download."""
     vec = np.zeros(dim, dtype=np.float32)
     for token in tokenize(text):
-        idx = hash(token) % dim
-        vec[idx] += 1.0
+        vec[_stable_token_index(token, dim)] += 1.0
     norm = float(np.linalg.norm(vec))
     if norm:
         vec /= norm
@@ -82,7 +88,8 @@ def top_k(
         (i, cosine_sim(query_vec, matrix[i]))
         for i in range(matrix.shape[0])
     ]
-    scores.sort(key=lambda x: x[1], reverse=True)
+    # Highest score first; stable tie-break by chunk index for determinism.
+    scores.sort(key=lambda x: (-x[1], x[0]))
     return scores[:k]
 
 

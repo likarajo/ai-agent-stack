@@ -11,17 +11,18 @@ email/notify, or when you pass `--email`).
 ## Quick start
 
 ```bash
-# Terminal A — optional Debugger stack (api :18000, ui :3000)
+# Terminal A — optional Debugger stack (api :8000, ui :3000; issue-api on :8001)
 make debugger-up
 
 # Terminal B — observability chat (http://127.0.0.1:8080)
-export AGENT_DEBUGGER_URL=http://127.0.0.1:18000
+export AGENT_DEBUGGER_URL=http://127.0.0.1:8000
 make chat
 ```
 
 Open **http://127.0.0.1:8080**, click a suggested question, watch the local
-trace pane. Copy `run_id` into Agent Debugger (after the small upstream “Watch
-run” UI patch — see [`AGENT_DEBUGGER_UPSTREAM.md`](AGENT_DEBUGGER_UPSTREAM.md)).
+trace pane. Copy `run_id` into Agent Debugger’s **Watch run** UI (or open
+`http://localhost:3000/?run_id=<uuid>` — see
+[`AGENT_DEBUGGER_UPSTREAM.md`](AGENT_DEBUGGER_UPSTREAM.md)).
 
 Standalone (no Debugger):
 
@@ -103,7 +104,7 @@ Every turn runs the full stack; the “focus” column is what to narrate on cam
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `AGENT_DEBUGGER_URL` | unset | Debugger API base (`http://127.0.0.1:18000`). Unset = standalone. |
+| `AGENT_DEBUGGER_URL` | unset | Debugger API base (`http://127.0.0.1:8000`). Unset = standalone. |
 | `AGENT_DEBUGGER_AUTO_APPROVE` | unset | Tests only — auto-approve gated tools |
 | `CHAT_HOST` / `CHAT_PORT` | `127.0.0.1` / `8080` | Web chat bind |
 | `SKIP_MODEL` | `0` | Force scripted LLM compose |
@@ -115,11 +116,20 @@ make debugger-up          # clones third_party/agent-debugger if needed
 make chat-debugger        # chat with AGENT_DEBUGGER_URL set
 ```
 
-The profile starts debugger **redis + api + ui** and this repo’s `issue-api`.
-It **omits** the debugger outreach worker so our chat owns the run. See upstream
-doc for the lasting fix (`enqueue: false` + idle scenarios + Watch-run UI).
+The profile starts debugger **redis + api (:8000) + ui (:3000)** and this repo’s
+`issue-api` on host **:8001** (so Debugger keeps :8000, matching
+agent-debugger’s compose). It **omits** the debugger outreach worker so our
+chat owns the run. External-run support is already merged upstream — see
+[`AGENT_DEBUGGER_UPSTREAM.md`](AGENT_DEBUGGER_UPSTREAM.md).
 
-## Upstream changes (not in this repo)
+## Deny path
 
-Exact file-by-file patches:
+Clicking **Deny** on gated `email.send` returns HTTP 200 from
+`POST /decision` and aborts the run inside agent-debugger. The integration
+client must not POST another `run.aborted` (that is the HTTP 400 crash). It
+records a denied `tool.result` locally and finishes the answer without further
+remote events.
+
+## Upstream notes
+
 [`AGENT_DEBUGGER_UPSTREAM.md`](AGENT_DEBUGGER_UPSTREAM.md)

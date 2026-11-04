@@ -3,7 +3,7 @@ PYTHONPATH := .:01-apis:02-tools:03-rag:04-mcp:05-plugins:06-skills:07-integrati
 export PYTHONPATH
 PYTEST ?= $(PYTHON) -m pytest
 PIP ?= $(PYTHON) -m pip
-AGENT_DEBUGGER_URL ?= http://127.0.0.1:18000
+AGENT_DEBUGGER_URL ?= http://127.0.0.1:8000
 
 .PHONY: help install smoke \
 	apis tools rag mcp plugins skills integration chat chat-debugger \
@@ -19,7 +19,7 @@ help:
 	@echo "  chat-debugger         chat with AGENT_DEBUGGER_URL set"
 	@echo "  test-<module>         smoke test one module"
 	@echo "  clone-debugger        clone Agent Debugger into third_party/"
-	@echo "  debugger-up           compose profile debugger (ui :3000, api :18000)"
+	@echo "  debugger-up           compose profile debugger (ui :3000, api :8000)"
 	@echo "  debugger-down         stop debugger profile"
 	@echo "  integration-debugger  one-shot pipeline with AGENT_DEBUGGER_URL"
 
@@ -54,25 +54,25 @@ chat-debugger:
 	SKIP_MODEL=1 AGENT_DEBUGGER_URL=$(AGENT_DEBUGGER_URL) $(PYTHON) 07-integration/integration/chat_app.py
 
 test-apis:
-	$(PYTEST) 01-apis/tests -q
+	$(PYTEST) 01-apis/tests -q -rA
 
 test-tools:
-	$(PYTEST) 02-tools/tests -q
+	$(PYTEST) 02-tools/tests -q -rA
 
 test-rag:
-	$(PYTEST) 03-rag/tests -q
+	$(PYTEST) 03-rag/tests -q -rA
 
 test-mcp:
-	$(PYTEST) 04-mcp/tests -q
+	$(PYTEST) 04-mcp/tests -q -rA
 
 test-plugins:
-	$(PYTEST) 05-plugins/tests -q
+	$(PYTEST) 05-plugins/tests -q -rA
 
 test-skills:
-	PYTHONPATH=06-skills:$(PYTHONPATH) $(PYTEST) 06-skills/tests -q
+	PYTHONPATH=06-skills:$(PYTHONPATH) $(PYTEST) 06-skills/tests -q -rA
 
 test-integration:
-	$(PYTEST) 07-integration/tests -q
+	$(PYTEST) 07-integration/tests -q -rA
 
 test-all smoke: test-apis test-tools test-rag test-mcp test-plugins test-skills test-integration
 	@echo "All model-free smoke tests passed."

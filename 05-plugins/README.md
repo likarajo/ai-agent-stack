@@ -30,23 +30,26 @@ The `northwind-issue-tracker` plugin manifest lists:
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 05-plugins
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r 05-plugins/requirements.txt
 export PYTHONPATH=.
 ```
 
 ## Run
 
+From the repo root:
+
 ```bash
 PYTHONPATH=. python 05-plugins/loader/install.py
 ```
 
-Docker:
+Docker, from the repo root:
 
 ```bash
-cd 05-plugins && docker compose up
+docker compose -f 05-plugins/docker-compose.yml up
 ```
 
 ## Expected output
@@ -56,13 +59,31 @@ Installed plugin: Northwind Issue Tracker (northwind-issue-tracker@1.0.0)
 MCP servers: northwind-issue-tracker
 Skills: issue-triage
 Commands: issues-login, triage-login
-...
+Key point: packaging only — runtime still uses MCP/tools/skills/APIs.
+
+Wrote host config → .../05-plugins/.installed/northwind-issue-tracker.json
 ```
+
+The installed host config resolves `python` to `sys.executable` and turns relative MCP script paths into absolute paths, so it works without PATH tweaks.
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-PYTHONPATH=. pytest 05-plugins/tests -q
+PYTHONPATH=. pytest 05-plugins/tests -q -rA
+```
+
+Expected summary:
+
+```text
+..                                                                       [100%]
+==================================== PASSES ====================================
+PASSED 05-plugins/tests/test_plugins_smoke.py::test_manifest_valid
+PASSED 05-plugins/tests/test_plugins_smoke.py::test_install_writes_config
+=========================== short test summary info ============================
+PASSED 05-plugins/tests/test_plugins_smoke.py::test_manifest_valid
+PASSED 05-plugins/tests/test_plugins_smoke.py::test_install_writes_config
 ```
 
 ## Code walkthrough

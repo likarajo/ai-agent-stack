@@ -32,15 +32,17 @@ The model (or a scripted stand-in) proposes `search_issues(state="open", text="l
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 02-tools
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# from repo root:
+pip install -r 02-tools/requirements.txt
 export PYTHONPATH=.
 ```
 
 ## Run
+
+From the repo root:
 
 ```bash
 # Scripted / free path (no model)
@@ -53,10 +55,10 @@ PYTHONPATH=. python 02-tools/tools_demo/agent.py
 # OPENAI_BASE_URL=... OPENAI_API_KEY=... OPENAI_MODEL=... PYTHONPATH=. python 02-tools/tools_demo/agent.py
 ```
 
-Docker (scripted):
+Docker (scripted), from the repo root:
 
 ```bash
-cd 02-tools && docker compose up
+docker compose -f 02-tools/docker-compose.yml up
 ```
 
 ## Expected output
@@ -73,8 +75,28 @@ Found 4 open issue(s) mentioning login:
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-PYTHONPATH=. pytest 02-tools/tests -q
+PYTHONPATH=. pytest 02-tools/tests -q -rA
+```
+
+Expected summary:
+
+```text
+.....                                                                    [100%]
+==================================== PASSES ====================================
+PASSED 02-tools/tests/test_tools_smoke.py::test_tool_schemas_present
+PASSED 02-tools/tests/test_tools_smoke.py::test_execute_search_issues
+PASSED 02-tools/tests/test_tools_smoke.py::test_execute_get_issue
+PASSED 02-tools/tests/test_tools_smoke.py::test_unknown_tool
+PASSED 02-tools/tests/test_tools_smoke.py::test_scripted_loop
+=========================== short test summary info ============================
+PASSED 02-tools/tests/test_tools_smoke.py::test_tool_schemas_present
+PASSED 02-tools/tests/test_tools_smoke.py::test_execute_search_issues
+PASSED 02-tools/tests/test_tools_smoke.py::test_execute_get_issue
+PASSED 02-tools/tests/test_tools_smoke.py::test_unknown_tool
+PASSED 02-tools/tests/test_tools_smoke.py::test_scripted_loop
 ```
 
 ## Code walkthrough

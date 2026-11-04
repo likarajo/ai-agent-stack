@@ -18,6 +18,8 @@ DEFAULT_PLUGIN = (
 )
 INSTALL_DIR = ROOT / "05-plugins" / ".installed"
 
+_PYTHON_COMMANDS = frozenset({"python", "python3", "py"})
+
 
 def load_manifest(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -28,25 +30,65 @@ def load_manifest(path: Path) -> dict[str, Any]:
     return data
 
 
+def _resolve_command(command: str) -> str:
+    """Resolve interpreter names to this process's executable (no PATH needed)."""
+    if command in _PYTHON_COMMANDS:
+        return sys.executable
+    # Absolute commands pass through; bare names stay as-is for non-Python tools.
+    candidate = Path(command)
+    if candidate.is_absolute():
+        return str(candidate)
+    return command
+
+
+def _resolve_arg(arg: str, *, module_root: Path) -> str:
+    """Resolve relative file paths against the repo root (or keep flags/values)."""
+    if arg.startswith("-") or arg.startswith("="):
+        return arg
+    # Paths in the manifest are repo-root relative (e.g. 04-mcp/server/...).
+    if "/" in arg or arg.endswith(".py"):
+        path = Path(arg)
+        if not path.is_absolute():
+            path = (ROOT / path).resolve()
+            if not path.exists():
+                # Fall back to module-relative resolution for portable bundles.
+                alt = (module_root / arg).resolve()
+                if alt.exists():
+                    path = alt
+        return str(path)
+    return arg
+
+
 def install_plugin(manifest_path: Path, install_dir: Path = INSTALL_DIR) -> Path:
     manifest = load_manifest(manifest_path)
     install_dir.mkdir(parents=True, exist_ok=True)
     target = install_dir / f"{manifest['name']}.json"
-    # Resolve relative paths against repo root for the installed host config.
+    module_root = manifest_path.resolve().parents[2]  # .../05-plugins
+    # Resolve command + relative paths so the host config works without PATH tweaks.
     resolved = {
         **manifest,
         "source_manifest": str(manifest_path.resolve()),
         "mcp_servers": [
             {
                 **server,
+                "command": _resolve_command(server.get("command", "python")),
                 "args": [
-                    str((ROOT / arg).resolve()) if not arg.startswith("-") and "/" in arg else arg
+                    _resolve_arg(arg, module_root=module_root)
                     for arg in server.get("args", [])
                 ],
+                "cwd": str(ROOT),
+                "env": {
+                    **server.get("env", {}),
+                    "PYTHONPATH": server.get("env", {}).get("PYTHONPATH")
+                    or f"{ROOT}:{ROOT / '04-mcp'}",
+                },
             }
             for server in manifest["mcp_servers"]
         ],
-        "skills": [str((ROOT / s).resolve()) for s in manifest["skills"]],
+        "skills": [
+            str((ROOT / s).resolve()) if not Path(s).is_absolute() else s
+            for s in manifest["skills"]
+        ],
     }
     target.write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
     return target

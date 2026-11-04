@@ -384,8 +384,10 @@ def _maybe_email(
         payload=payload,
     )
     if decision.get("decision") == "deny":
-        dbg.abort("Human denied email.send")
-        return {"ok": False, "denied": True}
+        # agent-debugger's POST /decision already aborted the run and wrote
+        # run.aborted. Do NOT post another run.aborted (that yields HTTP 400).
+        # tool_call already recorded a denied tool.result in the local audit.
+        return {"ok": False, "denied": True, "decision": decision}
     result = simulate_email_send(payload)
     if not debugger_enabled():
         dbg.tool_result(
@@ -442,12 +444,16 @@ def answer_question(
 
         email_mode = send_email if send_email is not None else _wants_email(question)
         email_result = _maybe_email(dbg, question, answer, force=bool(send_email)) if email_mode else None
-        if email_result and email_result.get("denied"):
+        denied = bool(email_result and email_result.get("denied"))
+        if denied:
             answer += "\n\n(email.send denied — answer not emailed)"
 
         duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+        # After Deny the remote run is already aborted: final_answer/complete
+        # stay local-only (see DebuggerClient._remote_closed) so the CLI does
+        # not crash on HTTP 400.
         dbg.final_answer(answer, duration_ms=duration_ms)
-        if dbg.run_id and not (email_result and email_result.get("denied")):
+        if dbg.run_id and not denied:
             dbg.complete(f"Chat turn finished in {duration_ms}ms")
 
         return {
@@ -455,6 +461,7 @@ def answer_question(
             "run_id": dbg.run_id,
             "duration_ms": duration_ms,
             "debugger": dbg.enabled,
+            "denied_email": denied,
             "events": list(dbg.local_events),
             "concepts": ["plugins", "skills", "rag", "mcp", "tools", "apis"],
         }

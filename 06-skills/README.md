@@ -24,45 +24,70 @@ Article decision guide: *Keep explaining the same procedure to your agent? Write
 Task: **“Triage the open login issues.”**  
 The agent matches `issue-triage`, loads `SKILL.md` in full, searches open login issues, and prints a triage report in the team template.
 
+Also try a billing question (**“How do I handle a billing refund dispute?”**) — the matcher should select `billing-refunds`, not `login-reset`.
+
 ## Prerequisites
 
 - Python 3.11+
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 06-skills
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r 06-skills/requirements.txt
 export PYTHONPATH=06-skills:.
 ```
 
 ## Run
 
+From the repo root:
+
 ```bash
 PYTHONPATH=06-skills:. python 06-skills/agent/run.py
 ```
 
-Docker:
+Docker, from the repo root:
 
 ```bash
-cd 06-skills && docker compose up
+docker compose -f 06-skills/docker-compose.yml up
 ```
 
 ## Expected output
 
-A skill catalog, then a selected `issue-triage` skill, then a `# Triage report` listing open login issues with severity calls.
+A skill catalog (names/descriptions only), then a selected `issue-triage` skill, then a `# Triage report` listing open login issues with severity calls.
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-PYTHONPATH=06-skills:. pytest 06-skills/tests -q
+PYTHONPATH=06-skills:. pytest 06-skills/tests -q -rA
+```
+
+Expected summary:
+
+```text
+.....                                                                    [100%]
+==================================== PASSES ====================================
+PASSED 06-skills/tests/test_skills_smoke.py::test_catalog_is_metadata_only
+PASSED 06-skills/tests/test_skills_smoke.py::test_catalog_is_lazy_no_full_parse
+PASSED 06-skills/tests/test_skills_smoke.py::test_billing_question_selects_billing_skill
+PASSED 06-skills/tests/test_skills_smoke.py::test_select_and_load
+PASSED 06-skills/tests/test_skills_smoke.py::test_run_produces_report
+=========================== short test summary info ============================
+PASSED 06-skills/tests/test_skills_smoke.py::test_catalog_is_metadata_only
+PASSED 06-skills/tests/test_skills_smoke.py::test_catalog_is_lazy_no_full_parse
+PASSED 06-skills/tests/test_skills_smoke.py::test_billing_question_selects_billing_skill
+PASSED 06-skills/tests/test_skills_smoke.py::test_select_and_load
+PASSED 06-skills/tests/test_skills_smoke.py::test_run_produces_report
 ```
 
 ## Code walkthrough
 
-1. `skills/issue-triage/SKILL.md` — front matter (name/description) + full playbook.
-2. `agent/loader.py` — `catalog` → `select_skill` → `load_full`.
+1. `skills/*/SKILL.md` — front matter (name/description) + full playbook.
+2. `agent/loader.py` — `catalog` (metadata only) → `select_skill` → `load_full`.
 3. `agent/run.py` — follows the skill steps using `shared.issue_store`.
 
 ## Next

@@ -24,6 +24,8 @@ Article one-liner: *RAG brings knowledge into the prompt. Tools let the model ta
 Question: **“How do we usually fix login timeouts?”**  
 Retrieval searches shared runbooks under `shared/data/docs/` (same Northwind portal domain).
 
+With the default deterministic hash embedder, the **top-ranked** passage is the “Agent-friendly tip” chunk in `auth-design-notes.md` (it quotes that question verbatim). Related chunks from `login-timeout-runbook.md` follow.
+
 ## Prerequisites
 
 - Python 3.11+ + `numpy`
@@ -31,14 +33,17 @@ Retrieval searches shared runbooks under `shared/data/docs/` (same Northwind por
 
 ## Setup
 
+All commands below are run **from the repository root**.
+
 ```bash
-cd 03-rag
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export PYTHONPATH=.   # from repo root
+pip install -r 03-rag/requirements.txt
+export PYTHONPATH=.
 ```
 
 ## Run
+
+From the repo root:
 
 ```bash
 SKIP_MODEL=1 PYTHONPATH=. python 03-rag/rag_demo/ask.py
@@ -46,20 +51,58 @@ SKIP_MODEL=1 PYTHONPATH=. python 03-rag/rag_demo/ask.py
 PYTHONPATH=. python 03-rag/rag_demo/ask.py
 ```
 
-Docker:
+Docker, from the repo root:
 
 ```bash
-cd 03-rag && docker compose up
+docker compose -f 03-rag/docker-compose.yml up
 ```
 
 ## Expected output
 
-Extractive mode prints top passages from `login-timeout-runbook.md` (and related docs) plus a `Sources:` line.
+Extractive mode (no LLM) prints ranked passages. For the default question, the top hit is from `auth-design-notes.md`:
+
+```text
+[extractive RAG — no LLM]
+Question: How do we usually fix login timeouts?
+
+Top passages:
+[auth-design-notes.md | score=0.611]
+## Agent-friendly tip
+When someone asks "how do we usually fix login timeouts?", start from the login-timeout runbook, then search open issues mentioning login.
+
+---
+
+[login-timeout-runbook.md | score=0.218]
+# Login timeout runbook
+...
+
+Sources: auth-design-notes.md, login-timeout-runbook.md
+```
+
+Scores are stable across runs (fixed embedding hash + index-order tie-break).
 
 ## Smoke test
 
+From the repo root:
+
 ```bash
-PYTHONPATH=. pytest 03-rag/tests -q
+PYTHONPATH=. pytest 03-rag/tests -q -rA
+```
+
+Expected summary:
+
+```text
+....                                                                     [100%]
+==================================== PASSES ====================================
+PASSED 03-rag/tests/test_rag_smoke.py::test_index_has_chunks
+PASSED 03-rag/tests/test_rag_smoke.py::test_retrieval_finds_login_runbook
+PASSED 03-rag/tests/test_rag_smoke.py::test_example_query_top_passage_is_deterministic
+PASSED 03-rag/tests/test_rag_smoke.py::test_extractive_answer
+=========================== short test summary info ============================
+PASSED 03-rag/tests/test_rag_smoke.py::test_index_has_chunks
+PASSED 03-rag/tests/test_rag_smoke.py::test_retrieval_finds_login_runbook
+PASSED 03-rag/tests/test_rag_smoke.py::test_example_query_top_passage_is_deterministic
+PASSED 03-rag/tests/test_rag_smoke.py::test_extractive_answer
 ```
 
 ## Code walkthrough

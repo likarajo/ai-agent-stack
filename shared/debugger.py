@@ -8,6 +8,7 @@ Protocol mirrors https://github.com/likarajo/agent-debugger
   POST /runs
   POST /runs/{id}/events
   GET  /runs/{id}/wait-decision
+  POST /runs/{id}/decision
 """
 
 from __future__ import annotations
@@ -51,10 +52,17 @@ class DebuggerClient:
         self.run_id: str | None = None
         self._client: httpx.Client | None = None
         self.local_events: list[dict[str, Any]] = []
+        # After a Deny, agent-debugger aborts the run server-side. Further
+        # POST /events (run.aborted, agent.answer, …) return HTTP 400.
+        self._remote_closed = False
 
     @property
     def enabled(self) -> bool:
         return bool(self.base_url)
+
+    @property
+    def remote_closed(self) -> bool:
+        return self._remote_closed
 
     def __enter__(self) -> "DebuggerClient":
         if self.enabled:
@@ -66,15 +74,44 @@ class DebuggerClient:
             self._client.close()
             self._client = None
 
+    def mark_remote_closed(self) -> None:
+        """Stop posting events — remote run is already completed/aborted."""
+        self._remote_closed = True
+
     def start_run(self, message: str = "Integration agent started") -> str | None:
         if self.enabled and self._client:
-            resp = self._client.post("/runs", json={"scenario": self.scenario})
+            # enqueue=false: external driver owns the run (agent-debugger PR #1).
+            resp = self._client.post(
+                "/runs",
+                json={"scenario": self.scenario, "enqueue": False},
+            )
             resp.raise_for_status()
             self.run_id = resp.json()["id"]
         else:
             self.run_id = f"local-{uuid.uuid4().hex[:8]}"
+        self._remote_closed = False
         self.emit("run.started", message=message, payload={"scenario": self.scenario})
         return self.run_id
+
+    def _record_local(
+        self,
+        body: dict[str, Any],
+        *,
+        local_only: bool = False,
+        detail: str | None = None,
+    ) -> dict[str, Any]:
+        recorded = {
+            **body,
+            "id": str(uuid.uuid4()),
+            "run_id": self.run_id,
+            "ts": time.time(),
+            "gated": body.get("gated", False),
+            "local_only": local_only,
+        }
+        if detail:
+            recorded["detail"] = detail
+        self.local_events.append(recorded)
+        return recorded
 
     def emit(
         self,
@@ -90,19 +127,40 @@ class DebuggerClient:
             "tool": tool,
             "payload": payload,
         }
-        recorded = {
-            **body,
-            "id": str(uuid.uuid4()),
-            "run_id": self.run_id,
-            "ts": time.time(),
-            "gated": False,
-        }
         if not self.enabled or not self._client or not self.run_id:
-            self.local_events.append(recorded)
-            return recorded
+            return self._record_local(body)
 
-        resp = self._client.post(f"/runs/{self.run_id}/events", json=body)
-        resp.raise_for_status()
+        # Deny already aborted the remote run — keep a local audit trail only.
+        if self._remote_closed:
+            return self._record_local(
+                body,
+                local_only=True,
+                detail="remote run already closed; event kept locally",
+            )
+
+        try:
+            resp = self._client.post(f"/runs/{self.run_id}/events", json=body)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Expected after Deny: POST /decision already aborted the run.
+            detail = ""
+            try:
+                detail = str(exc.response.json().get("detail") or "")
+            except Exception:  # noqa: BLE001
+                detail = exc.response.text or ""
+            if exc.response.status_code == 400 and (
+                "already aborted" in detail
+                or "already completed" in detail
+                or "already" in detail
+            ):
+                self._remote_closed = True
+                return self._record_local(
+                    body,
+                    local_only=True,
+                    detail=detail or "run already closed",
+                )
+            raise
+
         remote = resp.json()
         self.local_events.append(remote)
         return remote
@@ -122,6 +180,28 @@ class DebuggerClient:
             "agent.answer",
             message="Final answer ready",
             payload={"content": text, "duration_ms": duration_ms},
+        )
+
+    def record_denied_tool(
+        self,
+        tool: str,
+        *,
+        message: str | None = None,
+        payload: Any = None,
+    ) -> dict[str, Any]:
+        """Record a denied gated tool locally (remote run is already aborted)."""
+        body = {
+            "type": "tool.result",
+            "message": message or f"{tool} denied — not executed",
+            "tool": tool,
+            "payload": payload
+            or {"ok": False, "denied": True, "simulated": True},
+            "gated": True,
+        }
+        return self._record_local(
+            body,
+            local_only=True,
+            detail="denied tool recorded locally after remote abort",
         )
 
     @contextmanager
@@ -209,7 +289,21 @@ class DebuggerClient:
             return {"gated": True, "decision": "approve", "auto": True}
 
         decision = self.wait_decision()
-        return {"gated": True, "decision": decision.get("decision"), "raw": decision}
+        verdict = decision.get("decision")
+        if verdict == "deny":
+            # agent-debugger already POSTed run.aborted — do not emit again.
+            self.mark_remote_closed()
+            self.record_denied_tool(
+                tool,
+                message=f"Human denied {tool}",
+                payload={
+                    "ok": False,
+                    "denied": True,
+                    "simulated": True,
+                    "decision": decision,
+                },
+            )
+        return {"gated": True, "decision": verdict, "raw": decision}
 
     def tool_result(
         self,
@@ -237,6 +331,18 @@ class DebuggerClient:
         return self.emit("run.completed", message=message)
 
     def abort(self, message: str = "Run aborted") -> dict[str, Any]:
+        """Abort the run. No-ops remotely if Deny already aborted it."""
+        if self._remote_closed:
+            return self._record_local(
+                {
+                    "type": "run.aborted",
+                    "message": message,
+                    "tool": None,
+                    "payload": None,
+                },
+                local_only=True,
+                detail="skip remote run.aborted; already closed",
+            )
         return self.emit("run.aborted", message=message)
 
     def event_types(self) -> list[str]:

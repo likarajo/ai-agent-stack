@@ -29,19 +29,34 @@ from shared.debugger import DebuggerClient  # noqa: E402
 class _FakeTransport(httpx.BaseTransport):
     """Minimal Agent Debugger API stand-in."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, decision: str = "approve") -> None:
         self.events: list[dict[str, Any]] = []
         self.run_id = "run-test-obs-1"
         self.paused = False
+        self.status = "created"
+        self.decision = decision
+        self.event_posts_after_abort = 0
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if request.method == "POST" and path == "/runs":
+            body = json.loads(request.content.decode()) if request.content else {}
+            assert body.get("enqueue") is False
+            self.status = "created"
             return httpx.Response(
                 200,
-                json={"id": self.run_id, "status": "queued", "scenario": "ai_agent_stack_issue_triage"},
+                json={
+                    "id": self.run_id,
+                    "status": "created",
+                    "scenario": body.get("scenario") or "ai_agent_stack_issue_triage",
+                },
             )
         if request.method == "POST" and path.endswith("/events"):
+            if self.status in {"completed", "aborted"}:
+                self.event_posts_after_abort += 1
+                return httpx.Response(
+                    400, json={"detail": f"run already {self.status}"}
+                )
             body = json.loads(request.content.decode())
             gated = body.get("type") == "tool.call" and body.get("tool") in {
                 "email.send",
@@ -50,6 +65,13 @@ class _FakeTransport(httpx.BaseTransport):
             }
             if gated:
                 self.paused = True
+                self.status = "paused"
+            elif body.get("type") == "run.started":
+                self.status = "running"
+            elif body.get("type") == "run.completed":
+                self.status = "completed"
+            elif body.get("type") == "run.aborted":
+                self.status = "aborted"
             event = {
                 **body,
                 "id": f"evt-{len(self.events) + 1}",
@@ -60,12 +82,46 @@ class _FakeTransport(httpx.BaseTransport):
             self.events.append(event)
             return httpx.Response(200, json=event)
         if request.method == "GET" and path.endswith("/wait-decision"):
+            # Mirror agent-debugger: Deny aborts the run server-side (200 on
+            # /decision); waiters then see the decision payload.
             self.paused = False
+            if self.decision == "deny":
+                self.status = "aborted"
+                self.events.append(
+                    {
+                        "type": "decision",
+                        "message": "Human denied email.send",
+                        "tool": "email.send",
+                        "payload": {"decision": "deny", "tool": "email.send"},
+                        "id": f"evt-{len(self.events) + 1}",
+                        "run_id": self.run_id,
+                        "ts": 1_700_000_000 + len(self.events),
+                    }
+                )
+                self.events.append(
+                    {
+                        "type": "run.aborted",
+                        "message": "Run aborted after deny — email was not sent",
+                        "tool": None,
+                        "payload": None,
+                        "id": f"evt-{len(self.events) + 1}",
+                        "run_id": self.run_id,
+                        "ts": 1_700_000_000 + len(self.events),
+                    }
+                )
+            else:
+                self.status = "running"
             return httpx.Response(
-                200, json={"decision": "approve", "tool": "email.send"}
+                200, json={"decision": self.decision, "tool": "email.send"}
             )
         if request.method == "POST" and path.endswith("/decision"):
-            return httpx.Response(200, json={"type": "decision"})
+            body = json.loads(request.content.decode())
+            self.decision = body.get("decision", self.decision)
+            if self.decision == "deny":
+                self.status = "aborted"
+            else:
+                self.status = "running"
+            return httpx.Response(200, json={"type": "decision", "decision": self.decision})
         return httpx.Response(404, json={"detail": "not found"})
 
 
@@ -95,6 +151,47 @@ def test_debugger_emits_and_gates_email() -> None:
         assert "run.completed" in types
     finally:
         client._client.close()
+
+
+def test_deny_path_ends_cleanly_without_posting_after_abort() -> None:
+    """Deny returns 200 and aborts remotely; client must not 400 on follow-ups."""
+    transport = _FakeTransport(decision="deny")
+    dbg = DebuggerClient(base_url="http://debugger.test")
+    dbg._client = httpx.Client(transport=transport, base_url="http://debugger.test")
+    try:
+        result = answer_question(
+            "Triage the open login issues and email ops",
+            send_email=True,
+            dbg=dbg,
+        )
+        assert result["denied_email"] is True
+        assert "email.send denied" in result["answer"]
+        assert dbg.remote_closed is True
+
+        # Remote timeline: tool.call for email, then server-side decision + abort.
+        remote_types = [e["type"] for e in transport.events]
+        assert "tool.call" in remote_types
+        assert "decision" in remote_types
+        assert "run.aborted" in remote_types
+        # Critically: no further successful remote event posts after abort,
+        # and the client must not have raised on HTTP 400.
+        assert transport.event_posts_after_abort == 0
+
+        # Local audit still records the denied tool call + closing notes.
+        local_denied = [
+            e
+            for e in dbg.local_events
+            if e.get("type") == "tool.result"
+            and e.get("tool") == "email.send"
+            and (e.get("payload") or {}).get("denied")
+        ]
+        assert local_denied, "expected local denied tool.result in audit trail"
+        assert any(e.get("type") == "agent.answer" for e in dbg.local_events)
+        # agent.answer after deny is local-only (remote already aborted).
+        answer_ev = next(e for e in dbg.local_events if e.get("type") == "agent.answer")
+        assert answer_ev.get("local_only") is True
+    finally:
+        dbg._client.close()
 
 
 def test_full_answer_trace_posted_to_fake_debugger() -> None:
